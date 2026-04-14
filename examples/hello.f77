@@ -1,0 +1,5 @@
+PROGRAM HELLO
+INTEGER N
+N = 42
+PRINT *, 'Ola, Mundo! N=', N
+END
