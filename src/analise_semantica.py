@@ -593,6 +593,22 @@ class SemanticAnalyzer:
             return
 
         if isinstance(expression, ArrayAccess):
+            if expression.name.upper() in self.functions:
+                unary_function_call = FunctionCall(name=expression.name, args=[expression.index])
+                self._analyze_expression(
+                    expression.index,
+                    scope=scope,
+                    current_callable_name=current_callable_name,
+                    current_callable_kind=current_callable_kind,
+                )
+                self._function_result_type(
+                    unary_function_call,
+                    scope=scope,
+                    current_callable_name=current_callable_name,
+                    current_callable_kind=current_callable_kind,
+                )
+                return
+
             self._require_array(expression.name, scope)
             self._analyze_expression(
                 expression.index,
@@ -743,6 +759,13 @@ class SemanticAnalyzer:
         if isinstance(expression, Var):
             return self._require_scalar(expression.name, scope).type_name
         if isinstance(expression, ArrayAccess):
+            if expression.name.upper() in self.functions:
+                return self._function_result_type(
+                    FunctionCall(name=expression.name, args=[expression.index]),
+                    scope=scope,
+                    current_callable_name=current_callable_name,
+                    current_callable_kind=current_callable_kind,
+                )
             return self._require_array(expression.name, scope).type_name
         if isinstance(expression, FunctionCall):
             return self._function_result_type(

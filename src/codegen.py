@@ -262,6 +262,12 @@ class VMCodeGenerator:
             return
 
         if isinstance(expression, ArrayAccess):
+            # Grammar parses ID(expr) as ArrayAccess; if the name is a FUNCTION,
+            # this is a unary function call and must not be emitted as LOADN.
+            if expression.name.upper() in self.functions:
+                self._emit_function_call(FunctionCall(name=expression.name, args=[expression.index]))
+                return
+
             symbol = self._require_array_declared(expression.name)
             self.instructions.append("PUSHGP")
             self._emit_array_offset(expression.index, symbol)
@@ -332,10 +338,20 @@ class VMCodeGenerator:
             self.instructions.append("ADD")
 
     def _global_slots_count(self) -> int:
-        if not self.symbols:
-            return 0
+        max_end = 0
 
-        return max(symbol.base_index + symbol.size for symbol in self.symbols.values())
+        for symbol in self.symbols.values():
+            max_end = max(max_end, symbol.base_index + symbol.size)
+
+        for metadata in self.functions.values():
+            for symbol in metadata["symbols"].values():
+                max_end = max(max_end, symbol.base_index + symbol.size)
+
+        for metadata in self.subroutines.values():
+            for symbol in metadata["symbols"].values():
+                max_end = max(max_end, symbol.base_index + symbol.size)
+
+        return max_end
 
     def _emit_assignment_coercion(self, source_type: str, target_type: str) -> None:
         if source_type == target_type:
@@ -435,6 +451,8 @@ class VMCodeGenerator:
             return self._require_scalar_declared(expression.name).type_name
 
         if isinstance(expression, ArrayAccess):
+            if expression.name.upper() in self.functions:
+                return self.functions[expression.name.upper()]["return_type"]
             return self._require_array_declared(expression.name).type_name
 
         if isinstance(expression, FunctionCall):
@@ -523,6 +541,13 @@ class VMCodeGenerator:
                 )
 
             return_label = self._new_internal_label(f"FN_RET_{name}")
+            for argument, param_name, param_type in zip(expression.args, params, param_types):
+                arg_type = self._infer_expr_type(argument)
+                self._emit_expression(argument)
+                self._emit_assignment_coercion(arg_type, param_type)
+                param_symbol = function_symbols[param_name]
+                self.instructions.append(f"STOREG {param_symbol.base_index}")
+
             inline_context = _InlineFunctionContext(
                 tag=self._new_internal_label(f"FN_{name}"),
                 return_label=return_label,
@@ -532,13 +557,6 @@ class VMCodeGenerator:
 
             self._inline_function_context_stack.append(inline_context)
             try:
-                for argument, param_name, param_type in zip(expression.args, params, param_types):
-                    arg_type = self._infer_expr_type(argument)
-                    self._emit_expression(argument)
-                    self._emit_assignment_coercion(arg_type, param_type)
-                    param_symbol = function_symbols[param_name]
-                    self.instructions.append(f"STOREG {param_symbol.base_index}")
-
                 for statement in function_statements:
                     self._emit_statement(statement)
 
@@ -572,6 +590,13 @@ class VMCodeGenerator:
             )
 
         return_label = self._new_internal_label(f"SUB_RET_{name}")
+        for argument, param_name, param_type in zip(statement.args, params, param_types):
+            arg_type = self._infer_expr_type(argument)
+            self._emit_expression(argument)
+            self._emit_assignment_coercion(arg_type, param_type)
+            param_symbol = subroutine_symbols[param_name]
+            self.instructions.append(f"STOREG {param_symbol.base_index}")
+
         inline_context = _InlineFunctionContext(
             tag=self._new_internal_label(f"SUB_{name}"),
             return_label=return_label,
@@ -581,13 +606,6 @@ class VMCodeGenerator:
 
         self._inline_function_context_stack.append(inline_context)
         try:
-            for argument, param_name, param_type in zip(statement.args, params, param_types):
-                arg_type = self._infer_expr_type(argument)
-                self._emit_expression(argument)
-                self._emit_assignment_coercion(arg_type, param_type)
-                param_symbol = subroutine_symbols[param_name]
-                self.instructions.append(f"STOREG {param_symbol.base_index}")
-
             for sub_statement in subroutine_statements:
                 self._emit_statement(sub_statement)
 

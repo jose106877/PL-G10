@@ -337,6 +337,112 @@ END
         vm_code = compile_source_to_vm(source)
         self.assertIn("SUB_RET_SHOWSUM", vm_code)
 
+    def test_unary_function_call_compiles(self):
+        source = """PROGRAM TESTE
+INTEGER X, R, F
+X = 5
+R = F(X)
+PRINT *, R
+END
+INTEGER FUNCTION F(X)
+INTEGER X
+F = X + 1
+RETURN
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertIn("FN_RET_F", vm_code)
+        self.assertIn("PUSHG 0\nSTOREG 2", vm_code)
+
+    def test_function_arg_binding_uses_caller_scope(self):
+        source = """PROGRAM TESTE
+INTEGER X, Y, R, F
+X = 5
+Y = 7
+R = F(X, Y)
+PRINT *, R
+END
+INTEGER FUNCTION F(X, Y)
+INTEGER X, Y
+F = X + Y
+RETURN
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertIn("PUSHG 0\nSTOREG 3", vm_code)
+        self.assertIn("PUSHG 1\nSTOREG 4", vm_code)
+
+    def test_pushn_covers_slots_used_by_callables(self):
+        source = Path("examples/conversor.f77").read_text(encoding="utf-8")
+        vm_code = compile_source_to_vm(source)
+
+        pushn_value = None
+        max_global_index = -1
+
+        for line in vm_code.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[0] == "PUSHN" and parts[1].isdigit():
+                pushn_value = int(parts[1])
+            if len(parts) == 2 and parts[0] in {"PUSHG", "STOREG"} and parts[1].isdigit():
+                max_global_index = max(max_global_index, int(parts[1]))
+
+        self.assertIsNotNone(pushn_value)
+        self.assertGreaterEqual(pushn_value, max_global_index + 1)
+
+    def test_pushn_covers_slots_used_by_subroutines(self):
+        source = """PROGRAM TESTE
+INTEGER A, B
+A = 2
+B = 3
+CALL SHOW(A, B)
+END
+SUBROUTINE SHOW(X, Y)
+INTEGER X, Y, S, T
+S = X + Y
+T = S + 1
+PRINT *, T
+RETURN
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        pushn_value = None
+        max_global_index = -1
+
+        for line in vm_code.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[0] == "PUSHN" and parts[1].isdigit():
+                pushn_value = int(parts[1])
+            if len(parts) == 2 and parts[0] in {"PUSHG", "STOREG"} and parts[1].isdigit():
+                max_global_index = max(max_global_index, int(parts[1]))
+
+        self.assertIsNotNone(pushn_value)
+        self.assertGreaterEqual(pushn_value, max_global_index + 1)
+
+    def test_subroutine_arg_binding_uses_caller_scope(self):
+        source = """PROGRAM TESTE
+INTEGER X, Y
+X = 2
+Y = 3
+CALL SHOW(X, Y)
+END
+SUBROUTINE SHOW(X, Y)
+INTEGER X, Y
+PRINT *, X, Y
+RETURN
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertIn("PUSHG 0\nSTOREG 2", vm_code)
+        self.assertIn("PUSHG 1\nSTOREG 3", vm_code)
+
 
 if __name__ == "__main__":
     unittest.main()
