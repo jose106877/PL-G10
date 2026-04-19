@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .analise_semantica import SemanticAnalyzer
+from .analise_sintatica import parse_source
 from .codegen import VMCodeGenerator
-from .parser import parse_source
 
 
 def compile_source_to_vm(source: str) -> str:
     ast = parse_source(source)
+    symbols, functions, subroutines = SemanticAnalyzer().analyze(ast)
     generator = VMCodeGenerator()
-    return generator.compile(ast)
+    return generator.compile(ast, symbols=symbols, functions=functions, subroutines=subroutines)
 
 
 def compile_file(input_path: str, output_path: str) -> None:

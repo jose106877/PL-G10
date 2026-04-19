@@ -5,18 +5,31 @@ import sys
 import ply.yacc as yacc
 
 from .ast_nodes import (
+    ArrayAccess,
+    ArrayAssign,
     Assign,
     BinOp,
+    Call,
     Continue,
+    Declarator,
     Declaration,
+    DoLoop,
+    FloatNumber,
+    FunctionDef,
+    FunctionCall,
     Goto,
     IfThenElse,
     Label,
+    LogicalLiteral,
     Number,
     Print,
     Program,
+    ReadArrayTarget,
     Read,
+    ReadVarTarget,
+    Return,
     StringLiteral,
+    SubroutineDef,
     UnaryMinus,
     UnaryNot,
     Var,
@@ -34,9 +47,11 @@ precedence = (
 
 
 def p_program(p):
-    "program : opt_newlines PROGRAM ID NEWLINE lines END opt_newlines"
+    "program : opt_newlines PROGRAM ID NEWLINE lines END opt_newlines external_defs_opt"
     declarations: list[Declaration] = []
     statements = []
+    functions: list[FunctionDef] = []
+    subroutines: list[SubroutineDef] = []
 
     for node in p[5]:
         if isinstance(node, Declaration):
@@ -44,7 +59,19 @@ def p_program(p):
         elif node is not None:
             statements.append(node)
 
-    p[0] = Program(name=p[3], declarations=declarations, statements=statements)
+    for node in p[8]:
+        if isinstance(node, FunctionDef):
+            functions.append(node)
+        elif isinstance(node, SubroutineDef):
+            subroutines.append(node)
+
+    p[0] = Program(
+        name=p[3],
+        declarations=declarations,
+        statements=statements,
+        functions=functions,
+        subroutines=subroutines,
+    )
 
 
 def p_opt_newlines(p):
@@ -63,6 +90,75 @@ def p_lines_many(p):
 def p_lines_empty(p):
     "lines : empty"
     p[0] = []
+
+
+def p_external_defs_opt_many(p):
+    "external_defs_opt : external_defs"
+    p[0] = p[1]
+
+
+def p_external_defs_opt_empty(p):
+    "external_defs_opt : empty"
+    p[0] = []
+
+
+def p_external_defs_many(p):
+    "external_defs : external_defs external_def"
+    p[0] = p[1] + [p[2]]
+
+
+def p_external_defs_single(p):
+    "external_defs : external_def"
+    p[0] = [p[1]]
+
+
+def p_external_def_function(p):
+    "external_def : function_def"
+    p[0] = p[1]
+
+
+def p_external_def_subroutine(p):
+    "external_def : subroutine_def"
+    p[0] = p[1]
+
+
+def p_function_def(p):
+    "function_def : type_spec FUNCTION ID LPAREN param_list_opt RPAREN NEWLINE lines END opt_newlines"
+    declarations: list[Declaration] = []
+    statements = []
+
+    for node in p[8]:
+        if isinstance(node, Declaration):
+            declarations.append(node)
+        elif node is not None:
+            statements.append(node)
+
+    p[0] = FunctionDef(
+        name=p[3],
+        return_type=p[1],
+        params=p[5],
+        declarations=declarations,
+        statements=statements,
+    )
+
+
+def p_subroutine_def(p):
+    "subroutine_def : SUBROUTINE ID LPAREN param_list_opt RPAREN NEWLINE lines END opt_newlines"
+    declarations: list[Declaration] = []
+    statements = []
+
+    for node in p[7]:
+        if isinstance(node, Declaration):
+            declarations.append(node)
+        elif node is not None:
+            statements.append(node)
+
+    p[0] = SubroutineDef(
+        name=p[2],
+        params=p[4],
+        declarations=declarations,
+        statements=statements,
+    )
 
 
 def p_line_declaration(p):
@@ -85,23 +181,65 @@ def p_line_labeled_statement(p):
     p[0] = Label(label=p[1], statement=p[2])
 
 
+def p_line_labeled_if_statement(p):
+    "line : NUMBER if_statement"
+    p[0] = Label(label=p[1], statement=p[2])
+
+
 def p_line_empty(p):
     "line : NEWLINE"
 
 
-def p_declaration_integer(p):
-    "declaration : INTEGER id_list"
-    p[0] = Declaration(type_name="INTEGER", names=p[2])
+def p_declaration(p):
+    "declaration : type_spec decl_list"
+    p[0] = Declaration(type_name=p[1], items=p[2])
 
 
-def p_id_list_many(p):
-    "id_list : id_list COMMA ID"
+def p_type_spec(p):
+    """type_spec : INTEGER
+    | REAL
+    | LOGICAL"""
+    p[0] = p[1]
+
+
+def p_decl_list_many(p):
+    "decl_list : decl_list COMMA decl_item"
     p[0] = p[1] + [p[3]]
 
 
-def p_id_list_single(p):
-    "id_list : ID"
+def p_decl_list_single(p):
+    "decl_list : decl_item"
     p[0] = [p[1]]
+
+
+def p_param_list_opt_some(p):
+    "param_list_opt : param_list"
+    p[0] = p[1]
+
+
+def p_param_list_opt_empty(p):
+    "param_list_opt : empty"
+    p[0] = []
+
+
+def p_param_list_many(p):
+    "param_list : param_list COMMA ID"
+    p[0] = p[1] + [p[3]]
+
+
+def p_param_list_single(p):
+    "param_list : ID"
+    p[0] = [p[1]]
+
+
+def p_decl_item_scalar(p):
+    "decl_item : ID"
+    p[0] = Declarator(name=p[1])
+
+
+def p_decl_item_array(p):
+    "decl_item : ID LPAREN NUMBER RPAREN"
+    p[0] = Declarator(name=p[1], size=p[3])
 
 
 def p_statement_assign(p):
@@ -114,14 +252,19 @@ def p_simple_statement_assign(p):
     p[0] = Assign(name=p[1], expr=p[3])
 
 
+def p_simple_statement_array_assign(p):
+    "simple_statement : ID LPAREN expression RPAREN EQUALS expression"
+    p[0] = ArrayAssign(name=p[1], index=p[3], expr=p[6])
+
+
 def p_simple_statement_print(p):
     "simple_statement : PRINT TIMES COMMA print_list"
     p[0] = Print(values=p[4])
 
 
 def p_simple_statement_read(p):
-    "simple_statement : READ TIMES COMMA id_list"
-    p[0] = Read(names=p[4])
+    "simple_statement : READ TIMES COMMA read_target_list"
+    p[0] = Read(targets=p[4])
 
 
 def p_simple_statement_goto(p):
@@ -132,6 +275,77 @@ def p_simple_statement_goto(p):
 def p_simple_statement_continue(p):
     "simple_statement : CONTINUE"
     p[0] = Continue()
+
+
+def p_simple_statement_call(p):
+    "simple_statement : CALL ID LPAREN call_actual_args_opt RPAREN"
+    p[0] = Call(name=p[2], args=p[4])
+
+
+def p_simple_statement_return(p):
+    "simple_statement : RETURN"
+    p[0] = Return()
+
+
+def p_simple_statement_do(p):
+    "simple_statement : DO NUMBER ID EQUALS expression COMMA expression do_step_opt"
+    p[0] = DoLoop(
+        end_label=p[2],
+        variable_name=p[3],
+        start_expr=p[5],
+        end_expr=p[7],
+        step_expr=p[8],
+    )
+
+
+def p_do_step_opt(p):
+    """do_step_opt : COMMA expression
+    | empty"""
+    if len(p) == 3:
+        p[0] = p[2]
+        return
+
+    p[0] = None
+
+
+def p_call_actual_args_opt_some(p):
+    "call_actual_args_opt : call_actual_args"
+    p[0] = p[1]
+
+
+def p_call_actual_args_opt_empty(p):
+    "call_actual_args_opt : empty"
+    p[0] = []
+
+
+def p_call_actual_args_many(p):
+    "call_actual_args : call_actual_args COMMA expression"
+    p[0] = p[1] + [p[3]]
+
+
+def p_call_actual_args_single(p):
+    "call_actual_args : expression"
+    p[0] = [p[1]]
+
+
+def p_read_target_list_many(p):
+    "read_target_list : read_target_list COMMA read_target"
+    p[0] = p[1] + [p[3]]
+
+
+def p_read_target_list_single(p):
+    "read_target_list : read_target"
+    p[0] = [p[1]]
+
+
+def p_read_target_var(p):
+    "read_target : ID"
+    p[0] = ReadVarTarget(name=p[1])
+
+
+def p_read_target_array(p):
+    "read_target : ID LPAREN expression RPAREN"
+    p[0] = ReadArrayTarget(name=p[1], index=p[3])
 
 
 def p_if_statement_without_else(p):
@@ -169,6 +383,11 @@ def p_block_line_if_statement(p):
 
 def p_block_line_labeled_statement(p):
     "block_line : NUMBER simple_statement NEWLINE"
+    p[0] = Label(label=p[1], statement=p[2])
+
+
+def p_block_line_labeled_if_statement(p):
+    "block_line : NUMBER if_statement"
     p[0] = Label(label=p[1], statement=p[2])
 
 
@@ -238,9 +457,34 @@ def p_expression_number(p):
     p[0] = Number(value=p[1])
 
 
+def p_expression_float_number(p):
+    "expression : FNUMBER"
+    p[0] = FloatNumber(value=p[1])
+
+
 def p_expression_var(p):
     "expression : ID"
     p[0] = Var(name=p[1])
+
+
+def p_expression_function_call(p):
+    "expression : ID LPAREN call_args RPAREN"
+    p[0] = FunctionCall(name=p[1], args=p[3])
+
+
+def p_call_args_many(p):
+    "call_args : call_args COMMA expression"
+    p[0] = p[1] + [p[3]]
+
+
+def p_call_args_two(p):
+    "call_args : expression COMMA expression"
+    p[0] = [p[1], p[3]]
+
+
+def p_expression_array_access(p):
+    "expression : ID LPAREN expression RPAREN"
+    p[0] = ArrayAccess(name=p[1], index=p[3])
 
 
 def p_expression_uminus(p):
@@ -256,7 +500,7 @@ def p_expression_not(p):
 def p_expression_bool_literal(p):
     """expression : TRUE
     | FALSE"""
-    p[0] = Number(value=p[1])
+    p[0] = LogicalLiteral(value=bool(p[1]))
 
 
 def p_empty(p):

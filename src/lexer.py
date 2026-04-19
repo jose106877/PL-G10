@@ -7,6 +7,13 @@ import ply.lex as lex
 reserved = {
     "PROGRAM": "PROGRAM",
     "INTEGER": "INTEGER",
+    "REAL": "REAL",
+    "LOGICAL": "LOGICAL",
+    "FUNCTION": "FUNCTION",
+    "SUBROUTINE": "SUBROUTINE",
+    "CALL": "CALL",
+    "RETURN": "RETURN",
+    "DO": "DO",
     "IF": "IF",
     "THEN": "THEN",
     "ELSE": "ELSE",
@@ -20,6 +27,7 @@ reserved = {
 
 tokens = [
     "ID",
+    "FNUMBER",
     "NUMBER",
     "STRING",
     "PLUS",
@@ -136,6 +144,12 @@ def t_STRING(t):
     r"'([^'\n]|'')*'"
     content = t.value[1:-1]
     t.value = content.replace("''", "'")
+    return t
+
+
+def t_FNUMBER(t):
+    r"\d+\.\d+([Ee][+-]?\d+)?"
+    t.value = float(t.value)
     return t
 
 

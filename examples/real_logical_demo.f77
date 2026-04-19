@@ -1,0 +1,11 @@
+PROGRAM REALLOG
+REAL X, Y, Z
+LOGICAL OK
+X = 1.5
+Y = 2
+Z = X + Y
+OK = Z .GT. 3.0
+IF (OK) THEN
+PRINT *, 'Z=', Z
+ENDIF
+END

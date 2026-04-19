@@ -10,19 +10,27 @@ Este repositorio tem uma base inicial para o projeto de PL 2026: um compilador e
 - Analise semantica basica (variaveis declaradas e sem redeclaracoes)
 - Geracao de codigo VM para:
   - `PROGRAM ... END`
-  - `INTEGER` (declaracao de variaveis escalares)
+  - declaracoes `INTEGER`, `REAL`, `LOGICAL` (escalares e arrays)
   - atribuicoes
-  - expressoes inteiras (`+`, `-`, `*`, `/`, parentesis, unario `-`)
+  - expressoes inteiras e reais (`+`, `-`, `*`, `/`, parentesis, unario `-`)
   - expressoes relacionais e logicas (`.EQ.`, `.NE.`, `.LT.`, `.LE.`, `.GT.`, `.GE.`, `.AND.`, `.OR.`, `.NOT.`)
   - `PRINT *, ...`
   - `READ *, ...`
   - `IF (...) THEN ... [ELSE ...] ENDIF`
   - `GOTO <label>` e labels numericos (`100 CONTINUE`)
+  - `DO <label> I = ini, fim[, passo]` com fecho em `<label> CONTINUE`
+  - arrays `INTEGER A(10)` com acesso e atribuicao `A(I)`
+  - funcao embutida `MOD(a, b)`
+  - definicao e chamada de `FUNCTION` tipada (ex.: `INTEGER FUNCTION F(A, B)`)
+  - definicao e chamada de `SUBROUTINE` (ex.: `CALL S(A, B)`)
 
 ## Estrutura
 
 - `src/lexer.py`: tokens e regras lexicas
 - `src/parser.py`: gramatica e AST
+- `src/analise_lexica.py`: ponto de entrada da analise lexica
+- `src/analise_sintatica.py`: ponto de entrada da analise sintatica
+- `src/analise_semantica.py`: validacoes semanticas
 - `src/ast_nodes.py`: nos da AST
 - `src/codegen.py`: geracao para VM
 - `src/compiler.py`: pipeline parser + codegen
@@ -54,13 +62,12 @@ python -m unittest discover -s tests
 
 Esta base ainda nao suporta:
 
-- ciclos `DO` com label
-- `REAL`, `LOGICAL`, arrays e subprogramas
+- recursao de `FUNCTION`
+- recursao de `SUBROUTINE`
+- formato fixed-form classico por colunas do Fortran 77
 
 ## Proximos passos recomendados
 
-1. Implementar `DO ... CONTINUE`.
-2. Suportar `REAL` e instrucoes VM em virgula flutuante.
-3. Suportar `LOGICAL` e verificacoes de tipos mais completas.
-4. Adicionar arrays (`INTEGER A(10)`) e respetivo acesso.
-5. Adicionar suite de testes com os exemplos do enunciado.
+1. Implementar `SUBROUTINE` e `CALL`.
+2. Guardar outputs VM esperados para todos os exemplos.
+3. Fechar relatorio tecnico final de entrega.
