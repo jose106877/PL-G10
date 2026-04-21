@@ -20,14 +20,26 @@ END
 
         self.assertIn("START", vm_code)
         self.assertIn("PUSHN 1", vm_code)
-        self.assertIn("PUSHI 2", vm_code)
-        self.assertIn("PUSHI 3", vm_code)
-        self.assertIn("ADD", vm_code)
+        self.assertIn("PUSHI 5", vm_code)
         self.assertIn("STOREG 0", vm_code)
         self.assertIn("PUSHG 0", vm_code)
         self.assertIn("WRITEI", vm_code)
         self.assertIn("WRITELN", vm_code)
         self.assertIn("STOP", vm_code)
+
+    def test_tac_simplifies_add_zero(self):
+        source = """PROGRAM TESTE
+INTEGER A, B
+A = 7
+B = A + 0
+PRINT *, B
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertIn("PUSHG 0\nSTOREG 1", vm_code)
+        self.assertNotIn("ADD", vm_code)
 
     def test_undeclared_variable_raises(self):
         source = """PROGRAM TESTE

@@ -1,6 +1,6 @@
 # PL 2026 - Compilador Fortran 77 (Starter)
 
-Este repositorio tem uma base inicial para o projeto de PL 2026: um compilador em Python com PLY que traduz um subconjunto de Fortran 77 para codigo da VM.
+Este repositorio tem uma base inicial para o projeto de PL 2026: um compilador em Python com PLY que traduz um subconjunto de Fortran 77 para codigo da VM, com uma etapa intermédia TAC (three-address code) para otimizacao de expressoes.
 
 ## O que ja esta implementado
 
@@ -8,6 +8,7 @@ Este repositorio tem uma base inicial para o projeto de PL 2026: um compilador e
 - Analise sintatica com `ply.yacc`
 - AST minima
 - Analise semantica basica (variaveis declaradas e sem redeclaracoes)
+- Representacao intermédia TAC (three-address code) e otimizacao intermédia de expressoes
 - Geracao de codigo VM para:
   - `PROGRAM ... END`
   - declaracoes `INTEGER`, `REAL`, `LOGICAL` (escalares e arrays)
@@ -32,8 +33,9 @@ Este repositorio tem uma base inicial para o projeto de PL 2026: um compilador e
 - `src/analise_sintatica.py`: ponto de entrada da analise sintatica
 - `src/analise_semantica.py`: validacoes semanticas
 - `src/ast_nodes.py`: nos da AST
+- `src/tac.py`: lowering para TAC e otimizacao intermédia
 - `src/codegen.py`: geracao para VM
-- `src/compiler.py`: pipeline parser + codegen
+- `src/compiler.py`: pipeline parser + TAC + semantica + codegen
 - `src/main.py`: CLI
 - `examples/`: programas Fortran de exemplo
 - `tests/`: testes de fumo

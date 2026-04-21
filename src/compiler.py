@@ -5,13 +5,15 @@ from pathlib import Path
 from .analise_semantica import SemanticAnalyzer
 from .analise_sintatica import parse_source
 from .codegen import VMCodeGenerator
+from .tac import optimize_program_with_tac
 
 
 def compile_source_to_vm(source: str) -> str:
     ast = parse_source(source)
-    symbols, functions, subroutines = SemanticAnalyzer().analyze(ast)
+    optimized_ast = optimize_program_with_tac(ast)
+    symbols, functions, subroutines = SemanticAnalyzer().analyze(optimized_ast)
     generator = VMCodeGenerator()
-    return generator.compile(ast, symbols=symbols, functions=functions, subroutines=subroutines)
+    return generator.compile(optimized_ast, symbols=symbols, functions=functions, subroutines=subroutines)
 
 
 def compile_file(input_path: str, output_path: str) -> None:
