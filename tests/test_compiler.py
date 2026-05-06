@@ -68,10 +68,10 @@ END
         vm_code = compile_source_to_vm(source)
 
         self.assertIn("SUP", vm_code)
-        self.assertIn("JZ IF_ELSE_", vm_code)
-        self.assertIn("JUMP IF_END_", vm_code)
-        self.assertIn("IF_ELSE_", vm_code)
-        self.assertIn("IF_END_", vm_code)
+        self.assertIn("JZ IFELSE", vm_code)
+        self.assertIn("JUMP IFEND", vm_code)
+        self.assertIn("IFELSE", vm_code)
+        self.assertIn("IFEND", vm_code)
 
     def test_goto_and_label(self):
         source = """PROGRAM TESTE
@@ -116,10 +116,10 @@ END
 
         vm_code = compile_source_to_vm(source)
 
-        self.assertIn("DO_CHECK_", vm_code)
+        self.assertIn("DOCHECK", vm_code)
         self.assertIn("INFEQ", vm_code)
-        self.assertIn("DO_EXIT_", vm_code)
-        self.assertIn("JUMP DO_CHECK_", vm_code)
+        self.assertIn("DOEXIT", vm_code)
+        self.assertIn("JUMP DOCHECK", vm_code)
 
     def test_do_loop_requires_continue_at_end_label(self):
         source = """PROGRAM TESTE
@@ -214,7 +214,7 @@ END
         vm_code = compile_source_to_vm(source)
 
         self.assertIn("OR", vm_code)
-        self.assertIn("JZ IF_ELSE_", vm_code)
+        self.assertIn("JZ IFELSE", vm_code)
 
     def test_if_requires_logical_condition(self):
         source = """PROGRAM TESTE
@@ -282,7 +282,7 @@ END
         source = Path("examples/conversor.f77").read_text(encoding="utf-8")
         vm_code = compile_source_to_vm(source)
         self.assertIn("MOD", vm_code)
-        self.assertIn("FN_RET_CONVRT", vm_code)
+        self.assertIn("FNRETCONVRT", vm_code)
 
     def test_undefined_user_function_raises(self):
         source = """PROGRAM TESTE
@@ -313,7 +313,7 @@ END
 
         vm_code = compile_source_to_vm(source)
 
-        self.assertIn("SUB_RET_SHOWSUM", vm_code)
+        self.assertIn("SUBRETSHOWSUM", vm_code)
         self.assertIn("ADD", vm_code)
 
     def test_undefined_subroutine_raises(self):
@@ -347,7 +347,7 @@ END
     def test_example_subroutine_compiles(self):
         source = Path("examples/subroutine_demo.f77").read_text(encoding="utf-8")
         vm_code = compile_source_to_vm(source)
-        self.assertIn("SUB_RET_SHOWSUM", vm_code)
+        self.assertIn("SUBRETSHOWSUM", vm_code)
 
     def test_unary_function_call_compiles(self):
         source = """PROGRAM TESTE
@@ -365,7 +365,7 @@ END
 
         vm_code = compile_source_to_vm(source)
 
-        self.assertIn("FN_RET_F", vm_code)
+        self.assertIn("FNRETF", vm_code)
         self.assertIn("PUSHG 0\nSTOREG 2", vm_code)
 
     def test_function_arg_binding_uses_caller_scope(self):
