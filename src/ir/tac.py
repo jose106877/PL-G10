@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast_nodes import (
+from ..ast_nodes import (
     ArrayAccess,
     ArrayAssign,
     Assign,

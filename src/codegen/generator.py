@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from .ast_nodes import (
+from ..ast_nodes import (
     ArrayAccess,
     ArrayAssign,
     Assign,
@@ -682,7 +682,8 @@ class VMCodeGenerator:
 
     def _new_internal_label(self, prefix: str) -> str:
         self._internal_label_counter += 1
-        return f"{prefix}_{self._internal_label_counter}"
+        safe_prefix = "".join(character for character in prefix if character.isalnum())
+        return f"{safe_prefix}{self._internal_label_counter}"
 
     @staticmethod
     def _do_condition_opcode(step_expr) -> str:

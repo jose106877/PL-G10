@@ -4,7 +4,7 @@ import sys
 
 import ply.yacc as yacc
 
-from .ast_nodes import (
+from ..ast_nodes import (
     ArrayAccess,
     ArrayAssign,
     Assign,
@@ -34,7 +34,7 @@ from .ast_nodes import (
     UnaryNot,
     Var,
 )
-from .lexer import build_lexer, tokens
+from ..lexica.lexer import build_lexer, tokens
 
 precedence = (
     ("left", "OR_OP"),

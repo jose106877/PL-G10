@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .analise_semantica import SemanticAnalyzer
-from .analise_sintatica import parse_source
 from .codegen import VMCodeGenerator
-from .tac import optimize_program_with_tac
+from .ir import optimize_program_with_tac
+from .semantica import SemanticAnalyzer
+from .sintatica import parse_source
 
 
 def compile_source_to_vm(source: str) -> str:

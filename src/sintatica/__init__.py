@@ -1,4 +1,4 @@
-from __future__ import annotations
+"""Syntactic analysis package."""
 
 from .parser import build_parser, parse_source
 
