@@ -88,25 +88,25 @@ def detect_source_format(source: str) -> str:
         # fixed-form so pela posicao das colunas.
         if _has_free_continuation_marker(line):
             saw_free_continuation = True
-            free_score += 8
+            free_score += 8  # peso alto: & no fim e exclusivo de free-form
             previous_fixed_statement = False
             continue
 
         # Uma linha fixed normal tem campos 1-5 validos, coluna 6 vazia/0 e
         # codigo a partir da coluna 7.
         if _is_fixed_initial_line(line):
-            fixed_score += 3 if _fixed_label(line) else 2
+            fixed_score += 3 if _fixed_label(line) else 2  # label numerica e sinal mais forte
             previous_fixed_statement = True
             continue
 
         # Uma continuacao fixed so faz sentido se ja vimos uma linha fixed
         # imediatamente antes.
         if _is_fixed_continuation_line(line) and previous_fixed_statement:
-            fixed_score += 8
+            fixed_score += 8  # peso alto: coluna 6 preenchida e muito especifico de fixed-form
             continue
 
         # Se nao parece fixed, damos pontos a free-form. Keywords no inicio
-        # da linha sao um sinal mais forte.
+        # da linha sao um sinal mais forte (2) do que codigo generico (1).
         stripped_upper = line.lstrip().upper()
         if stripped_upper.startswith(_STATEMENT_KEYWORDS):
             free_score += 2
@@ -311,14 +311,19 @@ def _join_continuation(left: str, right: str) -> str:
 
 
 def _strip_free_comment(line: str) -> str:
-    """Remove comentarios `!` sem cortar strings com apostrofos."""
+    """Remove comentarios `!` sem cortar strings com apostrofos.
+
+    O `!` so e comentario fora de strings. Strings Fortran usam aspas simples
+    e escapam apostrofos internos com `''` (dois apostrofos seguidos, nao
+    barra invertida). Por isso percorremos caracter a caracter.
+    """
     in_string = False
     index = 0
     while index < len(line):
         character = line[index]
         if character == "'":
-            # Fortran escapa apostrofo dentro de string com dois apostrofos.
             if in_string and index + 1 < len(line) and line[index + 1] == "'":
+                # Par de apostrofos dentro de string = apostrofo literal; avanca 2.
                 index += 2
                 continue
             in_string = not in_string

@@ -47,6 +47,7 @@ from ..ast_nodes import (
     Var,
 )
 
+from ..codegen.errors import CompilerError
 from .optimizations import _TacOptimizer
 from .tac_types import (
     TacAssignInstr,
@@ -303,4 +304,4 @@ def _optimize_statement(statement: Statement) -> Statement:
     if isinstance(statement, (Goto, Continue, Return)):
         return statement
 
-    return statement
+    raise CompilerError(f"Unsupported statement node in TAC optimizer: {type(statement).__name__}")
