@@ -97,5 +97,3 @@ Os ficheiros `.vm` resultantes encontram-se na pasta `output/`.
 ```bash
 python -m unittest discover -s tests
 ```
-
-39 testes, todos a passar.
