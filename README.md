@@ -1,75 +1,101 @@
-# PL 2026 - Compilador Fortran 77 (Starter)
+# PL 2026 - Compilador Fortran 77
 
-Este repositorio tem uma base inicial para o projeto de PL 2026: um compilador em Python com PLY que traduz um subconjunto de Fortran 77 para codigo da VM, com uma etapa intermédia TAC (three-address code) para otimizacao de expressoes.
+Compilador em Python com PLY que traduz um subconjunto de Fortran 77 para código da VM,
+com etapa intermédia TAC (three-address code) para otimização de expressões.
 
-## O que ja esta implementado
+**Grupo G10** — Universidade do Minho, Licenciatura em Engenharia Informática, 2025/2026
 
-- Analise lexica com `ply.lex`
-- Analise sintatica com `ply.yacc`
-- AST minima
-- Analise semantica basica (variaveis declaradas e sem redeclaracoes)
-- Representacao intermédia TAC (three-address code) e otimizacao intermédia de expressoes
-- Geracao de codigo VM para:
+## Funcionalidades
+
+- Pré-processamento automático de **fixed-form** (colunas 1-72) e **free-form** (com `&`)
+- Análise léxica com `ply.lex`
+- Análise sintática com `ply.yacc` e construção de AST imutável
+- Análise semântica: tipos, declarações, labels, consistência de `DO`/`CONTINUE`, aridade de subprogramas
+- Otimização intermédia via TAC: *constant folding*, propagação de cópias, eliminação de código morto
+- Geração de código VM para:
   - `PROGRAM ... END`
-  - declaracoes `INTEGER`, `REAL`, `LOGICAL` (escalares e arrays)
-  - atribuicoes
-  - expressoes inteiras e reais (`+`, `-`, `*`, `/`, parentesis, unario `-`)
-  - expressoes relacionais e logicas (`.EQ.`, `.NE.`, `.LT.`, `.LE.`, `.GT.`, `.GE.`, `.AND.`, `.OR.`, `.NOT.`)
-  - `PRINT *, ...`
-  - `READ *, ...`
+  - Declarações `INTEGER`, `REAL`, `LOGICAL` — escalares e arrays unidimensionais
+  - Atribuições escalares e a arrays (`A(I) = expr`)
+  - Expressões aritméticas (`+`, `-`, `*`, `/`, menos unário)
+  - Expressões relacionais (`.EQ.`, `.NE.`, `.LT.`, `.LE.`, `.GT.`, `.GE.`)
+  - Expressões lógicas (`.AND.`, `.OR.`, `.NOT.`)
+  - `PRINT *, ...` e `READ *, ...`
   - `IF (...) THEN ... [ELSE ...] ENDIF`
-  - `GOTO <label>` e labels numericos (`100 CONTINUE`)
-  - `DO <label> I = ini, fim[, passo]` com fecho em `<label> CONTINUE`
-  - arrays `INTEGER A(10)` com acesso e atribuicao `A(I)`
-  - funcao embutida `MOD(a, b)`
-  - definicao e chamada de `FUNCTION` tipada (ex.: `INTEGER FUNCTION F(A, B)`)
-  - definicao e chamada de `SUBROUTINE` (ex.: `CALL S(A, B)`)
+  - `GOTO <label>` e labels numéricas (`100 CONTINUE`)
+  - `DO <label> var = ini, fim [, passo]` com fecho em `<label> CONTINUE`
+  - Função embutida `MOD(a, b)`
+  - `INTEGER/REAL/LOGICAL FUNCTION nome(...)` — definição e chamada
+  - `SUBROUTINE nome(...)` — definição e `CALL`
+
+> **Nota:** recursão de `FUNCTION` e `SUBROUTINE` não é suportada (inlining no ponto de chamada).
 
 ## Estrutura
 
-- `src/lexer.py`: tokens e regras lexicas
-- `src/parser.py`: gramatica e AST
-- `src/analise_lexica.py`: ponto de entrada da analise lexica
-- `src/analise_sintatica.py`: ponto de entrada da analise sintatica
-- `src/analise_semantica.py`: validacoes semanticas
-- `src/ast_nodes.py`: nos da AST
-- `src/tac.py`: lowering para TAC e otimizacao intermédia
-- `src/codegen.py`: geracao para VM
-- `src/compiler.py`: pipeline parser + TAC + semantica + codegen
-- `src/main.py`: CLI
-- `examples/`: programas Fortran de exemplo
-- `tests/`: testes de fumo
+```
+src/
+  preprocess.py          detecção e normalização fixed-form/free-form
+  ast_nodes.py           nós da AST (dataclasses imutáveis)
+  compiler.py            pipeline completo: preprocess → parse → TAC → semântica → codegen
+  main.py                CLI
+  lexica/
+    lexer.py             tokens e regras léxicas (ply.lex)
+  sintatica/
+    parser.py            gramática e construção da AST (ply.yacc)
+  semantica/
+    analyzer.py          orquestrador da análise semântica
+    expressions.py       validação e inferência de tipos de expressões
+    statements.py        validação de statements e controlo de fluxo
+    symbols.py           construção das tabelas de símbolos
+    context.py           contexto partilhado entre fases semânticas
+  ir/
+    tac.py               lowering AST → TAC e reconstrução
+    optimizations.py     constant folding, propagação de cópias, dead code
+    tac_types.py         tipos de dados do TAC
+  codegen/
+    generator.py         VMCodeGenerator (agrega os mixins)
+    statements.py        emissão de statements
+    expressions.py       emissão de expressões
+    loops.py             emissão de ciclos DO
+    calls.py             inlining de FUNCTION e SUBROUTINE
+    helpers.py           utilitários partilhados
+    context.py           estado interno do gerador
+    errors.py            CompilerError
+examples/                programas Fortran 77 de exemplo
+output/                  código VM gerado para cada exemplo
+tests/                   suite de testes automatizados
+relatorio.tex            relatório técnico do projeto
+```
 
 ## Como correr
 
-1. Instalar dependencias:
+### Instalar dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Compilar exemplo:
+### Compilar um programa Fortran
 
 ```bash
-python -m src.main examples/hello.f77 -o hello.vm
+python -m src.main <ficheiro.f77> -o <saida.vm>
 ```
 
-3. Correr testes:
+### Exemplos do enunciado
+
+```bash
+python -m src.main examples/hello.f77        -o output/hello.vm
+python -m src.main examples/fatorial_do.f77  -o output/fatorial_do.vm
+python -m src.main examples/primo.f77        -o output/primo.vm
+python -m src.main examples/soma_array.f77   -o output/soma_array.vm
+python -m src.main examples/conversor.f77    -o output/conversor.vm
+```
+
+Os ficheiros `.vm` resultantes encontram-se na pasta `output/`.
+
+### Correr os testes
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-## Limites desta primeira versao
-
-Esta base ainda nao suporta:
-
-- recursao de `FUNCTION`
-- recursao de `SUBROUTINE`
-- formato fixed-form classico por colunas do Fortran 77
-
-## Proximos passos recomendados
-
-1. Implementar `SUBROUTINE` e `CALL`.
-2. Guardar outputs VM esperados para todos os exemplos.
-3. Fechar relatorio tecnico final de entrega.
+39 testes, todos a passar.
