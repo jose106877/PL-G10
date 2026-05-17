@@ -1,3 +1,5 @@
+"""Tokenization helper for debugging and teaching."""
+
 from __future__ import annotations
 
 from .lexer import build_lexer, tokens

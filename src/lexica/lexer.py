@@ -1,3 +1,5 @@
+"""PLY lexer for the Fortran 77 subset."""
+
 from __future__ import annotations
 
 import sys

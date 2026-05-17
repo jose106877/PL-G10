@@ -1,3 +1,5 @@
+"""PLY parser that builds the AST from tokens."""
+
 from __future__ import annotations
 
 import sys

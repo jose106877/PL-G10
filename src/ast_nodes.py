@@ -1,3 +1,5 @@
+"""AST node definitions for the Fortran 77 subset."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

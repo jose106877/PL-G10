@@ -1,3 +1,5 @@
+"""CLI entry point for the compiler."""
+
 from __future__ import annotations
 
 import argparse
