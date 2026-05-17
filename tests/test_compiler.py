@@ -5,9 +5,118 @@ from pathlib import Path
 
 from src.codegen import CompilerError
 from src.compiler import compile_source_to_vm
+from src.preprocess import FIXED_FORM, FREE_FORM, detect_source_format, preprocess_source
 
 
 class CompilerSmokeTests(unittest.TestCase):
+    def test_preprocessor_detects_free_form(self):
+        source = """PROGRAM TESTE
+INTEGER A
+A = 1
+END
+"""
+
+        self.assertEqual(FREE_FORM, detect_source_format(source))
+        self.assertIn("PROGRAM TESTE", preprocess_source(source))
+
+    def test_preprocessor_ignores_free_form_comment_lines_when_detecting(self):
+        source = """! comment 1
+! comment 2
+! comment 3
+PROGRAM TESTE
+INTEGER A
+A = 1
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertEqual(FREE_FORM, detect_source_format(source))
+        self.assertIn("PUSHI 1", vm_code)
+
+    def test_preprocessor_keeps_call_at_column_one_as_free_form(self):
+        source = """PROGRAM TESTE
+CALL A()
+CALL B()
+END
+SUBROUTINE A()
+RETURN
+END
+SUBROUTINE B()
+RETURN
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertEqual(FREE_FORM, detect_source_format(source))
+        self.assertIn("SUBRETA", vm_code)
+        self.assertIn("SUBRETB", vm_code)
+
+    def test_fixed_form_assignment_and_continuation_compile(self):
+        source = """      PROGRAM FIXED
+      INTEGER A
+      A = 2 +
+     &    3
+      PRINT *, A
+      END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertEqual(FIXED_FORM, detect_source_format(source))
+        self.assertIn("PUSHI 5", vm_code)
+        self.assertIn("WRITEI", vm_code)
+
+    def test_fixed_form_do_loop_labels_and_comments_compile(self):
+        source = """C fixed-form comment
+* another fixed-form comment
+      PROGRAM FIXEDDO
+      INTEGER I, N, S
+      N = 3
+      S = 0
+      DO 10 I = 1, N
+      S = S + I
+   10 CONTINUE
+      PRINT *, S
+      END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertEqual(FIXED_FORM, detect_source_format(source))
+        self.assertIn("DOCHECK", vm_code)
+        self.assertIn("L10:", vm_code)
+        self.assertIn("WRITEI", vm_code)
+
+    def test_free_form_ampersand_continuation_compile(self):
+        source = """PROGRAM FREECONT
+INTEGER A
+A = 2 + &
+    3
+PRINT *, A
+END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertEqual(FREE_FORM, detect_source_format(source))
+        self.assertIn("PUSHI 5", vm_code)
+
+    def test_indented_free_form_ampersand_continuation_is_not_fixed_form(self):
+        source = """      PROGRAM FREEIND
+      INTEGER A
+      A = 2 + &
+          3
+      PRINT *, A
+      END
+"""
+
+        vm_code = compile_source_to_vm(source)
+
+        self.assertEqual(FREE_FORM, detect_source_format(source))
+        self.assertIn("PUSHI 5", vm_code)
+
     def test_assignment_and_print(self):
         source = """PROGRAM TESTE
 INTEGER A

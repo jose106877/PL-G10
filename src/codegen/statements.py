@@ -1,4 +1,9 @@
-"""Emissao de statements em codigo VM."""
+"""Emissao de statements em codigo VM.
+
+Cada statement consome/emite expressoes e acrescenta instrucoes a
+`self.instructions`. A AST ja passou pela semantica, por isso aqui o foco e
+traduzir para a VM.
+"""
 
 from __future__ import annotations
 
@@ -22,9 +27,10 @@ from ..ast_nodes import (
 
 
 class StatementEmitterMixin:
-    """Rotinas para emitir statements."""
+    """Rotinas para transformar statements AST em instrucoes VM."""
     def _emit_statement(self, statement) -> None:
-        """Emite codigo VM para um statement."""
+        """Despacha a emissao conforme o tipo concreto do statement."""
+        # Atribuicao escalar: calcula expr, converte se preciso e guarda.
         if isinstance(statement, Assign):
             symbol = self._require_scalar_declared(statement.name)
             expr_type = self._infer_expr_type(statement.expr)
@@ -33,6 +39,7 @@ class StatementEmitterMixin:
             self.instructions.append(f"STOREG {symbol.base_index}")
             return
 
+        # Atribuicao a array: empilha endereco, calcula expr e faz STOREN.
         if isinstance(statement, ArrayAssign):
             symbol = self._require_array_declared(statement.name)
             self.instructions.append("PUSHGP")
@@ -43,10 +50,12 @@ class StatementEmitterMixin:
             self.instructions.append("STOREN")
             return
 
+        # Inicio de DO fica no mixin de loops.
         if isinstance(statement, DoLoop):
             self._emit_do_loop_start(statement)
             return
 
+        # Label Fortran vira label VM e pode fechar um DO ativo.
         if isinstance(statement, Label):
             label_name = self._resolve_source_label(statement.label)
             self.instructions.append(f"{label_name}:")
@@ -57,18 +66,22 @@ class StatementEmitterMixin:
                 self._emit_do_loop_end(do_key)
             return
 
+        # GOTO vira salto incondicional.
         if isinstance(statement, Goto):
             self.instructions.append(f"JUMP {self._resolve_source_label(statement.label)}")
             return
 
+        # CONTINUE nao faz nada em runtime, mas precisa existir como label alvo.
         if isinstance(statement, Continue):
             self.instructions.append("NOP")
             return
 
+        # CALL de subrotina e emitido por inlining.
         if isinstance(statement, Call):
             self._emit_subroutine_call(statement)
             return
 
+        # RETURN dentro de callable inlined salta para a label de retorno.
         if isinstance(statement, Return):
             inline_context = self._current_inline_context()
             if inline_context is None:
@@ -76,6 +89,7 @@ class StatementEmitterMixin:
             self.instructions.append(f"JUMP {inline_context.return_label}")
             return
 
+        # IF: se condicao for zero/falso, salta para ELSE; depois salta para END.
         if isinstance(statement, IfThenElse):
             else_label = self._new_internal_label("IF_ELSE")
             end_label = self._new_internal_label("IF_END")
@@ -96,6 +110,7 @@ class StatementEmitterMixin:
             self.instructions.append(f"{end_label}:")
             return
 
+        # READ devolve string; depois convertemos conforme o tipo do destino.
         if isinstance(statement, Read):
             for target in statement.targets:
                 if isinstance(target, ReadVarTarget):
@@ -118,6 +133,7 @@ class StatementEmitterMixin:
 
             return
 
+        # PRINT emite cada valor e fecha com WRITELN.
         if isinstance(statement, Print):
             for value in statement.values:
                 if isinstance(value, StringLiteral):

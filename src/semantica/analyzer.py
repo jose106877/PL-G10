@@ -1,13 +1,10 @@
-"""
-Analisador Semantico - Orquestracao
-=================================
+"""Orquestrador da analise semantica.
 
-Coordena a fase semantica: constroi tabelas de simbolos e valida statements.
-
-Fluxo:
-- Recolhe cabecalhos de FUNCTION/SUBROUTINE
-- Declara variaveis globais, funcoes e subrotinas
-- Valida statements do programa e de cada callable
+Este modulo nao valida detalhes diretamente. Ele coordena os tres blocos da
+semantica:
+- `symbols.py`: cria tabelas de simbolos;
+- `expressions.py`: infere/valida tipos de expressoes;
+- `statements.py`: valida atribuicoes, I/O, labels, DO, IF e CALL.
 """
 
 from __future__ import annotations
@@ -20,17 +17,26 @@ from .symbols import SymbolTableBuilder
 
 
 class SemanticAnalyzer:
-    """Orquestra a analise semantica e devolve tabelas e metadados."""
+    """Ponto de entrada unico da fase semantica."""
     def __init__(self) -> None:
+        # O contexto e recriado logicamente em cada `analyze`.
         self._context = SemanticContext()
 
     def analyze(
         self,
         program: Program,
     ) -> tuple[dict[str, SymbolInfo], dict[str, dict[str, object]], dict[str, dict[str, object]]]:
-        """Executa a analise semantica completa para um Program."""
+        """Executa a analise semantica completa para um `Program`.
+
+        Devolve:
+        - simbolos globais;
+        - metadados de FUNCTIONs;
+        - metadados de SUBROUTINEs.
+        """
         self._context.reset()
 
+        # Primeiro declaramos tudo. Isto permite validar chamadas mesmo quando
+        # a definicao aparece depois do programa principal.
         builder = SymbolTableBuilder(self._context)
         builder.collect_callable_headers(program)
         builder.declare_global_variables(program)
@@ -40,6 +46,7 @@ class SemanticAnalyzer:
         expr_analyzer = ExpressionAnalyzer(self._context)
         statement_analyzer = StatementAnalyzer(self._context, expr_analyzer)
 
+        # Valida o corpo do programa principal no escopo global.
         statement_analyzer.analyze_statement_block(
             program.statements,
             scope=self._context.symbols,
@@ -47,6 +54,7 @@ class SemanticAnalyzer:
             current_callable_kind=None,
         )
 
+        # Valida cada FUNCTION no seu escopo local.
         for function_name, metadata in self._context.functions.items():
             statement_analyzer.analyze_statement_block(
                 metadata["statements"],
@@ -55,6 +63,7 @@ class SemanticAnalyzer:
                 current_callable_kind="FUNCTION",
             )
 
+        # Valida cada SUBROUTINE no seu escopo local.
         for subroutine_name, metadata in self._context.subroutines.items():
             statement_analyzer.analyze_statement_block(
                 metadata["statements"],
@@ -63,6 +72,7 @@ class SemanticAnalyzer:
                 current_callable_kind="SUBROUTINE",
             )
 
+        # Devolvemos copias para o codegen nao depender do objeto interno.
         return (
             dict(self._context.symbols),
             builder.copy_callable_metadata(self._context.functions),

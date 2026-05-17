@@ -1,4 +1,12 @@
-"""PLY parser that builds the AST from tokens."""
+"""Parser PLY que transforma tokens numa AST.
+
+Cada funcao `p_...` representa uma regra da gramatica. O PLY le a primeira
+string dentro de cada funcao, por isso esses textos com aspas sao codigo da
+gramatica e nao comentarios normais.
+
+O resultado final desta fase e sempre um `Program` definido em
+`src/ast_nodes.py`.
+"""
 
 from __future__ import annotations
 
@@ -38,6 +46,8 @@ from ..ast_nodes import (
 )
 from ..lexica.lexer import build_lexer, tokens
 
+# Tabela de precedencia dos operadores. Quanto mais abaixo estiver o grupo,
+# maior a prioridade. Isto faz `A + B * C` ser parseado como `A + (B * C)`.
 precedence = (
     ("left", "OR_OP"),
     ("left", "AND_OP"),
@@ -50,6 +60,8 @@ precedence = (
 
 def p_program(p):
     "program : opt_newlines PROGRAM ID NEWLINE lines END opt_newlines external_defs_opt"
+    # O programa principal tem declaracoes e statements misturados no bloco de
+    # linhas. Separamos esses dois tipos para facilitar a semantica/codegen.
     declarations: list[Declaration] = []
     statements = []
     functions: list[FunctionDef] = []
@@ -62,6 +74,7 @@ def p_program(p):
             statements.append(node)
 
     for node in p[8]:
+        # Depois do END principal podem vir FUNCTIONs e SUBROUTINEs externos.
         if isinstance(node, FunctionDef):
             functions.append(node)
         elif isinstance(node, SubroutineDef):
@@ -79,10 +92,12 @@ def p_program(p):
 def p_opt_newlines(p):
     """opt_newlines : opt_newlines NEWLINE
     | empty"""
+    # Regra vazia: permite linhas em branco no inicio/fim sem criar nos AST.
 
 
 def p_lines_many(p):
     "lines : lines line"
+    # Acumula linhas reconhecidas, ignorando linhas vazias (`None`).
     items = p[1]
     if p[2] is not None:
         items.append(p[2])
@@ -91,21 +106,25 @@ def p_lines_many(p):
 
 def p_lines_empty(p):
     "lines : empty"
+    # Um bloco pode estar vazio; por exemplo, um IF sem statements.
     p[0] = []
 
 
 def p_external_defs_opt_many(p):
     "external_defs_opt : external_defs"
+    # Caso com subprogramas depois do programa principal.
     p[0] = p[1]
 
 
 def p_external_defs_opt_empty(p):
     "external_defs_opt : empty"
+    # Caso normal: sem subprogramas externos.
     p[0] = []
 
 
 def p_external_defs_many(p):
     "external_defs : external_defs external_def"
+    # Lista de FUNCTION/SUBROUTINEs externos.
     p[0] = p[1] + [p[2]]
 
 
@@ -126,6 +145,8 @@ def p_external_def_subroutine(p):
 
 def p_function_def(p):
     "function_def : type_spec FUNCTION ID LPAREN param_list_opt RPAREN NEWLINE lines END opt_newlines"
+    # Tal como no programa principal, o corpo da funcao mistura declaracoes e
+    # statements; separamos ja aqui.
     declarations: list[Declaration] = []
     statements = []
 
@@ -146,6 +167,7 @@ def p_function_def(p):
 
 def p_subroutine_def(p):
     "subroutine_def : SUBROUTINE ID LPAREN param_list_opt RPAREN NEWLINE lines END opt_newlines"
+    # SUBROUTINE e parecida com FUNCTION, mas nao tem tipo de retorno.
     declarations: list[Declaration] = []
     statements = []
 
@@ -165,21 +187,26 @@ def p_subroutine_def(p):
 
 def p_line_declaration(p):
     "line : declaration NEWLINE"
+    # Linha simples de declaracao, por exemplo `INTEGER A, B`.
     p[0] = p[1]
 
 
 def p_line_statement(p):
     "line : statement NEWLINE"
+    # Linha simples de statement.
     p[0] = p[1]
 
 
 def p_line_if_statement(p):
     "line : if_statement"
+    # IF tem varias linhas internas, por isso a propria regra ja consome o
+    # NEWLINE final do ENDIF.
     p[0] = p[1]
 
 
 def p_line_labeled_statement(p):
     "line : NUMBER simple_statement NEWLINE"
+    # Uma label numerica envolve o statement que aparece nessa linha.
     p[0] = Label(label=p[1], statement=p[2])
 
 
@@ -194,6 +221,7 @@ def p_line_empty(p):
 
 def p_declaration(p):
     "declaration : type_spec decl_list"
+    # Declaracao tipada: `INTEGER A`, `REAL X`, `LOGICAL OK`, etc.
     p[0] = Declaration(type_name=p[1], items=p[2])
 
 
@@ -236,11 +264,13 @@ def p_param_list_single(p):
 
 def p_decl_item_scalar(p):
     "decl_item : ID"
+    # Declarador escalar.
     p[0] = Declarator(name=p[1])
 
 
 def p_decl_item_array(p):
     "decl_item : ID LPAREN NUMBER RPAREN"
+    # Declarador de array unidimensional com tamanho constante.
     p[0] = Declarator(name=p[1], size=p[3])
 
 
@@ -251,21 +281,25 @@ def p_statement_assign(p):
 
 def p_simple_statement_assign(p):
     "simple_statement : ID EQUALS expression"
+    # Atribuicao a variavel escalar.
     p[0] = Assign(name=p[1], expr=p[3])
 
 
 def p_simple_statement_array_assign(p):
     "simple_statement : ID LPAREN expression RPAREN EQUALS expression"
+    # Atribuicao a uma posicao de array.
     p[0] = ArrayAssign(name=p[1], index=p[3], expr=p[6])
 
 
 def p_simple_statement_print(p):
     "simple_statement : PRINT TIMES COMMA print_list"
+    # O subset suporta o formato simples `PRINT *, ...`.
     p[0] = Print(values=p[4])
 
 
 def p_simple_statement_read(p):
     "simple_statement : READ TIMES COMMA read_target_list"
+    # O subset suporta o formato simples `READ *, ...`.
     p[0] = Read(targets=p[4])
 
 
@@ -291,6 +325,7 @@ def p_simple_statement_return(p):
 
 def p_simple_statement_do(p):
     "simple_statement : DO NUMBER ID EQUALS expression COMMA expression do_step_opt"
+    # O DO do Fortran 77 termina numa label, normalmente com `CONTINUE`.
     p[0] = DoLoop(
         end_label=p[2],
         variable_name=p[3],
@@ -303,6 +338,7 @@ def p_simple_statement_do(p):
 def p_do_step_opt(p):
     """do_step_opt : COMMA expression
     | empty"""
+    # O passo e opcional; quando falta, o codegen usa 1 por defeito.
     if len(p) == 3:
         p[0] = p[2]
         return
@@ -352,16 +388,19 @@ def p_read_target_array(p):
 
 def p_if_statement_without_else(p):
     "if_statement : IF LPAREN expression RPAREN THEN NEWLINE block_lines ENDIF NEWLINE"
+    # IF simples sem ELSE.
     p[0] = IfThenElse(condition=p[3], then_body=p[7], else_body=None)
 
 
 def p_if_statement_with_else(p):
     "if_statement : IF LPAREN expression RPAREN THEN NEWLINE block_lines ELSE NEWLINE block_lines ENDIF NEWLINE"
+    # IF com ramo ELSE.
     p[0] = IfThenElse(condition=p[3], then_body=p[7], else_body=p[10])
 
 
 def p_block_lines_many(p):
     "block_lines : block_lines block_line"
+    # Acumula statements dentro de IF/ELSE.
     items = p[1]
     if p[2] is not None:
         items.append(p[2])
@@ -414,6 +453,7 @@ def p_print_item_expr(p):
 
 def p_print_item_string(p):
     "print_item : STRING"
+    # Strings sao imprimiveis, mas nao sao expressoes com tipo numerico/logico.
     p[0] = StringLiteral(value=p[1])
 
 
@@ -430,6 +470,7 @@ def p_expression_binop(p):
     | expression GE_OP expression
     | expression AND_OP expression
     | expression OR_OP expression"""
+    # Convertimos os nomes dos tokens para operadores internos mais simples.
     operator_by_token = {
         "PLUS": "+",
         "MINUS": "-",
@@ -451,6 +492,7 @@ def p_expression_binop(p):
 
 def p_expression_group(p):
     "expression : LPAREN expression RPAREN"
+    # Parentesis nao criam no proprio; apenas devolvem a expressao interna.
     p[0] = p[2]
 
 
@@ -471,6 +513,7 @@ def p_expression_var(p):
 
 def p_expression_function_call(p):
     "expression : ID LPAREN call_args RPAREN"
+    # Chamadas com dois ou mais argumentos ficam claramente como FunctionCall.
     p[0] = FunctionCall(name=p[1], args=p[3])
 
 
@@ -486,6 +529,7 @@ def p_call_args_two(p):
 
 def p_expression_array_access(p):
     "expression : ID LPAREN expression RPAREN"
+    # Sintaticamente `A(I)` pode ser array ou funcao unaria. A semantica decide.
     p[0] = ArrayAccess(name=p[1], index=p[3])
 
 
@@ -510,6 +554,7 @@ def p_empty(p):
 
 
 def p_error(token):
+    # Mensagens de erro sintatico com token/linha ajudam muito na defesa.
     if token is None:
         raise SyntaxError("Unexpected end of file.")
     raise SyntaxError(f"Syntax error at token {token.type} ({token.value!r}) line {token.lineno}")
@@ -519,6 +564,7 @@ _PARSER = None
 
 
 def build_parser():
+    """Constroi o parser PLY uma unica vez e reutiliza-o."""
     global _PARSER
     if _PARSER is None:
         _PARSER = yacc.yacc(
@@ -531,6 +577,7 @@ def build_parser():
 
 
 def parse_source(source: str) -> Program:
+    """Parseia codigo ja pre-processado e devolve a AST."""
     parser = build_parser()
     lexer = build_lexer()
     ast = parser.parse(source, lexer=lexer)

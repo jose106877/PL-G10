@@ -1,13 +1,10 @@
-"""
-Analisador Semantico - Tabelas de Simbolos
-=========================================
+"""Construcao de tabelas de simbolos.
 
-Responsavel por recolher cabecalhos e declarar simbolos.
+A tabela de simbolos liga nomes do programa a informacao concreta:
+tipo, posicao global na VM, tamanho e se e array.
 
-Responsabilidades:
-- Cabecalhos de FUNCTION/SUBROUTINE
-- Declaracoes globais, de funcoes e de subrotinas
-- Validacao de declaracoes externas
+Tambem recolhemos metadados de FUNCTION/SUBROUTINE para validar chamadas e
+para o codegen conseguir fazer inlining.
 """
 
 from __future__ import annotations
@@ -20,25 +17,33 @@ from .context import SemanticContext
 
 
 class SymbolTableBuilder:
-    """Construtor de tabelas de simbolos e metadados de callables."""
+    """Preenche o `SemanticContext` com simbolos e callables."""
     def __init__(self, context: SemanticContext) -> None:
         self._ctx = context
 
     def collect_callable_headers(self, program: Program) -> None:
-        """Regista cabecalhos de FUNCTION e SUBROUTINE antes do corpo."""
+        """Regista nomes/assinaturas antes de declarar corpos.
+
+        Isto permite que o programa principal chame uma funcao que aparece
+        escrita mais abaixo no ficheiro.
+        """
         for function in program.functions:
+            # O subset so suporta estes tres tipos.
             if function.return_type not in {"INTEGER", "REAL", "LOGICAL"}:
                 raise CompilerError(f"Unsupported function return type: {function.return_type}.")
 
+            # Nao pode haver duas funcoes com o mesmo nome.
             if function.name in self._ctx.function_headers:
                 raise CompilerError(f"Function {function.name} was defined more than once.")
 
+            # Parametros repetidos tornariam a tabela local ambigua.
             if len(set(function.params)) != len(function.params):
                 raise CompilerError(f"Function {function.name} has duplicated parameter names.")
 
             self._ctx.function_headers[function.name] = function
 
         for subroutine in program.subroutines:
+            # Mesmo tipo de validacoes para SUBROUTINE.
             if subroutine.name in self._ctx.subroutine_headers:
                 raise CompilerError(f"Subroutine {subroutine.name} was defined more than once.")
 
@@ -51,7 +56,7 @@ class SymbolTableBuilder:
             self._ctx.subroutine_headers[subroutine.name] = subroutine
 
     def declare_global_variables(self, program: Program) -> None:
-        """Declara variaveis globais e valida declaracoes externas."""
+        """Declara variaveis do programa principal."""
         for declaration in program.declarations:
             if declaration.type_name not in {"INTEGER", "REAL", "LOGICAL"}:
                 raise CompilerError(f"Unsupported declaration type: {declaration.type_name}")
@@ -59,6 +64,8 @@ class SymbolTableBuilder:
             for item in declaration.items:
                 name = item.name
 
+                # Em Fortran, declarar no programa principal uma FUNCTION
+                # externa com o mesmo nome indica o seu tipo de retorno.
                 if name in self._ctx.function_headers:
                     self._validate_external_function_declaration(
                         declaration_type=declaration.type_name,
@@ -67,12 +74,14 @@ class SymbolTableBuilder:
                     )
                     continue
 
+                # SUBROUTINE nao pode ser usada como variavel.
                 if name in self._ctx.subroutine_headers:
                     raise CompilerError(f"Subroutine {name} cannot be declared as variable.")
 
                 if name in self._ctx.symbols:
                     raise CompilerError(f"Variable {name} was declared more than once.")
 
+                # Escalares ocupam um slot global.
                 if item.size is None:
                     self._ctx.symbols[name] = SymbolInfo(
                         type_name=declaration.type_name,
@@ -83,6 +92,7 @@ class SymbolTableBuilder:
                     self._ctx.next_global_slot += 1
                     continue
 
+                # Arrays ocupam `size` slots consecutivos.
                 if item.size <= 0:
                     raise CompilerError(f"Array {name} must have a positive size.")
 
@@ -95,20 +105,23 @@ class SymbolTableBuilder:
                 self._ctx.next_global_slot += item.size
 
     def declare_functions(self, program: Program) -> None:
-        """Declara simbolos locais e metadados de funcoes."""
+        """Declara escopo local e metadados de cada FUNCTION."""
         for function in program.functions:
             function_symbols: dict[str, SymbolInfo] = {}
 
+            # Primeiro registamos todas as declaracoes locais.
             for declaration in function.declarations:
                 if declaration.type_name not in {"INTEGER", "REAL", "LOGICAL"}:
                     raise CompilerError(f"Unsupported declaration type: {declaration.type_name}")
 
                 for item in declaration.items:
+                    # Dentro da funcao tambem nao permitimos redeclaracao.
                     if item.name in function_symbols:
                         raise CompilerError(
                             f"Variable {item.name} was declared more than once in function {function.name}."
                         )
 
+                    # Variavel local escalar.
                     if item.size is None:
                         function_symbols[item.name] = SymbolInfo(
                             type_name=declaration.type_name,
@@ -119,6 +132,7 @@ class SymbolTableBuilder:
                         self._ctx.next_global_slot += 1
                         continue
 
+                    # Array local.
                     if item.size <= 0:
                         raise CompilerError(f"Array {item.name} must have a positive size.")
 
@@ -130,6 +144,8 @@ class SymbolTableBuilder:
                     )
                     self._ctx.next_global_slot += item.size
 
+            # Cada parametro formal precisa aparecer nas declaracoes locais
+            # para sabermos o seu tipo.
             param_types: list[str] = []
             for param in function.params:
                 if param not in function_symbols:
@@ -144,6 +160,7 @@ class SymbolTableBuilder:
                     )
                 param_types.append(symbol.type_name)
 
+            # A variavel com o nome da funcao guarda o valor de retorno.
             if function.name in function_symbols:
                 symbol = function_symbols[function.name]
                 if symbol.is_array or symbol.type_name != function.return_type:
@@ -151,6 +168,8 @@ class SymbolTableBuilder:
                         f"Function result variable {function.name} must match return type {function.return_type}."
                     )
             else:
+                # Se o programador nao declarou explicitamente a variavel de
+                # retorno, criamos uma automaticamente.
                 function_symbols[function.name] = SymbolInfo(
                     type_name=function.return_type,
                     base_index=self._ctx.next_global_slot,
@@ -159,6 +178,7 @@ class SymbolTableBuilder:
                 )
                 self._ctx.next_global_slot += 1
 
+            # Guardamos tudo o que a semantica/codegen precisam.
             self._ctx.functions[function.name] = {
                 "name": function.name,
                 "return_type": function.return_type,
@@ -169,10 +189,11 @@ class SymbolTableBuilder:
             }
 
     def declare_subroutines(self, program: Program) -> None:
-        """Declara simbolos locais e metadados de subrotinas."""
+        """Declara escopo local e metadados de cada SUBROUTINE."""
         for subroutine in program.subroutines:
             subroutine_symbols: dict[str, SymbolInfo] = {}
 
+            # Declaracoes locais da subrotina.
             for declaration in subroutine.declarations:
                 if declaration.type_name not in {"INTEGER", "REAL", "LOGICAL"}:
                     raise CompilerError(f"Unsupported declaration type: {declaration.type_name}")
@@ -204,6 +225,7 @@ class SymbolTableBuilder:
                     )
                     self._ctx.next_global_slot += item.size
 
+            # Parametros precisam estar declarados para termos tipos.
             param_types: list[str] = []
             for param in subroutine.params:
                 if param not in subroutine_symbols:
@@ -218,6 +240,7 @@ class SymbolTableBuilder:
                     )
                 param_types.append(symbol.type_name)
 
+            # SUBROUTINE nao tem retorno, mas precisa de params/simbolos/corpo.
             self._ctx.subroutines[subroutine.name] = {
                 "name": subroutine.name,
                 "params": tuple(subroutine.params),
@@ -233,6 +256,7 @@ class SymbolTableBuilder:
         function_name: str,
         size: int | None,
     ) -> None:
+        """Confirma que a declaracao externa bate com a FUNCTION definida."""
         function = self._ctx.function_headers[function_name]
         if size is not None:
             raise CompilerError(f"Function declaration {function_name} cannot be an array.")
@@ -243,6 +267,7 @@ class SymbolTableBuilder:
 
     @staticmethod
     def copy_callable_metadata(metadata_map: Mapping[str, dict[str, object]]) -> dict[str, dict[str, object]]:
+        """Cria copias simples dos metadados para devolver ao codegen."""
         copied: dict[str, dict[str, object]] = {}
         for name, metadata in metadata_map.items():
             copied[name] = {
