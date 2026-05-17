@@ -54,6 +54,7 @@ from .tac_types import (
     TacBinaryInstr,
     TacConst,
     TacExpression,
+    TacInstruction,
     TacOperand,
     TacOpaqueExpr,
     TacTempRef,
