@@ -27,7 +27,6 @@ com etapa intermédia TAC (three-address code) para otimização de expressões.
   - `INTEGER/REAL/LOGICAL FUNCTION nome(...)` — definição e chamada
   - `SUBROUTINE nome(...)` — definição e `CALL`
 
-> **Nota:** recursão de `FUNCTION` e `SUBROUTINE` não é suportada (inlining no ponto de chamada).
 
 ## Estrutura
 
