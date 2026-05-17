@@ -186,11 +186,12 @@ class HelperMixin:
         return f"{safe_prefix}{self._internal_label_counter}"
 
     @staticmethod
-    def _do_condition_opcode(step_expr) -> str:
-        """Escolhe comparacao do DO conforme o sinal do passo literal."""
-        if isinstance(step_expr, Number) and step_expr.value < 0:
-            return "SUPEQ"
-        return "INFEQ"
+    def _do_condition_opcode(step_expr, variable_type: str = "INTEGER") -> str:
+        """Escolhe comparacao do DO conforme o sinal do passo e o tipo da variavel."""
+        descending = isinstance(step_expr, Number) and step_expr.value < 0
+        if variable_type == "REAL":
+            return "FSUPEQ" if descending else "FINFEQ"
+        return "SUPEQ" if descending else "INFEQ"
 
     @staticmethod
     def _escape_vm_string(value: str) -> str:

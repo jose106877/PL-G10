@@ -25,6 +25,7 @@ class LoopEmitterMixin:
         # Guardamos a variavel de controlo no slot global/local resolvido.
         variable_symbol = self._require_scalar_declared(statement.variable_name)
         variable_index = variable_symbol.base_index
+        variable_type = variable_symbol.type_name
 
         # Passo omitido em Fortran significa passo 1.
         step_expr = statement.step_expr if statement.step_expr is not None else Number(1)
@@ -36,13 +37,16 @@ class LoopEmitterMixin:
         # Guardamos este DO para completar quando aparecer a label de fecho.
         self._active_do_loops_by_label[do_key] = _ActiveDoLoop(
             variable_index=variable_index,
+            variable_type=variable_type,
             step_expr=step_expr,
             check_label=check_label,
             exit_label=exit_label,
         )
 
-        # I = inicio
+        # I = inicio (com coercao se necessario)
         self._emit_expression(statement.start_expr)
+        if variable_type == "REAL" and self._infer_expr_type(statement.start_expr) != "REAL":
+            self.instructions.append("ITOF")
         self.instructions.append(f"STOREG {variable_index}")
 
         # check:
@@ -51,17 +55,21 @@ class LoopEmitterMixin:
         self.instructions.append(f"{check_label}:")
         self.instructions.append(f"PUSHG {variable_index}")
         self._emit_expression(statement.end_expr)
-        self.instructions.append(self._do_condition_opcode(step_expr))
+        if variable_type == "REAL" and self._infer_expr_type(statement.end_expr) != "REAL":
+            self.instructions.append("ITOF")
+        self.instructions.append(self._do_condition_opcode(step_expr, variable_type))
         self.instructions.append(f"JZ {exit_label}")
 
     def _emit_do_loop_end(self, do_key: object) -> None:
         """Emite incremento e salto de volta ao teste do DO."""
         loop = self._active_do_loops_by_label.pop(do_key)
 
-        # I = I + passo
+        # I = I + passo (com coercao e opcode correto para REAL)
         self.instructions.append(f"PUSHG {loop.variable_index}")
         self._emit_expression(loop.step_expr)
-        self.instructions.append("ADD")
+        if loop.variable_type == "REAL" and self._infer_expr_type(loop.step_expr) != "REAL":
+            self.instructions.append("ITOF")
+        self.instructions.append("FADD" if loop.variable_type == "REAL" else "ADD")
         self.instructions.append(f"STOREG {loop.variable_index}")
         # Volta ao teste; se falhar, cai na label de saida.
         self.instructions.append(f"JUMP {loop.check_label}")

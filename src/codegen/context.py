@@ -14,6 +14,9 @@ class _ActiveDoLoop:
     # Indice global da variavel de controlo do DO.
     variable_index: int
 
+    # Tipo da variavel de controlo (INTEGER ou REAL).
+    variable_type: str
+
     # Expressao do passo; se o fonte omitiu o passo, isto sera Number(1).
     step_expr: object
 

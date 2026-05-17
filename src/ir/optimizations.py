@@ -112,7 +112,7 @@ class _TacOptimizer:
         if not isinstance(left, TacConst) or not isinstance(right, TacConst):
             return None
 
-        if operator in {"+", "-", "*"}:
+        if operator in {"+", "-", "*", "/"}:
             return self._fold_arithmetic(operator, left, right)
 
         if operator in {"EQ", "NE", "LT", "LE", "GT", "GE"}:
@@ -124,8 +124,8 @@ class _TacOptimizer:
         return None
 
     @staticmethod
-    def _fold_arithmetic(operator: str, left: TacConst, right: TacConst) -> TacConst:
-        """Constant folding para `+`, `-` e `*`."""
+    def _fold_arithmetic(operator: str, left: TacConst, right: TacConst) -> TacConst | None:
+        """Constant folding para `+`, `-`, `*` e `/`."""
         use_float = left.type_name == "REAL" or right.type_name == "REAL"
         left_value = float(left.value) if use_float else int(left.value)
         right_value = float(right.value) if use_float else int(right.value)
@@ -134,8 +134,16 @@ class _TacOptimizer:
             result = left_value + right_value
         elif operator == "-":
             result = left_value - right_value
-        else:
+        elif operator == "*":
             result = left_value * right_value
+        else:
+            if right_value == 0:
+                return None  # nao dobrar divisao por zero
+            if use_float:
+                result = left_value / right_value
+            else:
+                # Fortran trunca para zero (igual a C), nao floor como Python.
+                result = int(left_value / right_value)
 
         if use_float:
             return TacConst(value=float(result), type_name="REAL")
