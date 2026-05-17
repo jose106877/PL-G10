@@ -2,7 +2,8 @@
 
 O compilador normal nao precisa de devolver os tokens ao utilizador, mas esta
 funcao e util para confirmar se o lexer reconhece corretamente cada pedaco do
-codigo fonte.
+codigo fonte. Esta funcao e um utilitario de debug e nao faz parte do pipeline
+principal de compilacao.
 """
 
 from __future__ import annotations

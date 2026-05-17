@@ -38,6 +38,7 @@ src/
   main.py                CLI
   lexica/
     lexer.py             tokens e regras léxicas (ply.lex)
+    tokenize.py          utilitário de debug para listar tokens produzidos pelo lexer
   sintatica/
     parser.py            gramática e construção da AST (ply.yacc)
   semantica/
@@ -62,7 +63,7 @@ src/
 examples/                programas Fortran 77 de exemplo
 output/                  código VM gerado para cada exemplo
 tests/                   suite de testes automatizados
-relatorio.tex            relatório técnico do projeto
+relatorio.pdf            relatório técnico do projeto
 ```
 
 ## Como correr
